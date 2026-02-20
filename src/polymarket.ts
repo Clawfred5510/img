@@ -180,7 +180,7 @@ export interface TradeParams {
   price?: number;
 }
 
-export async function placeTrade(params: TradeParams): Promise<{ success: boolean; orderId?: string; error?: string }> {
+export async function placeTrade(params: TradeParams): Promise<{ success: boolean; orderId?: string; error?: string; buyPrice?: number }> {
   if (config.paperTrade) {
     const orderId = `paper-${Date.now()}`;
     logger.info(TAG, `PAPER TRADE: BUY ${params.size} USDC of ${params.tokenId.slice(0, 10)}...`, params);
@@ -235,7 +235,7 @@ export async function placeTrade(params: TradeParams): Promise<{ success: boolea
       return { success: false, error: errMsg };
     } else if (order && order.orderID) {
       logger.info(TAG, `Order placed: ${order.orderID}`, order);
-      return { success: true, orderId: order.orderID };
+      return { success: true, orderId: order.orderID, buyPrice: price };
     } else {
       logger.warn(TAG, 'Unexpected order response', order);
       return { success: false, error: 'Unexpected response — no orderID' };

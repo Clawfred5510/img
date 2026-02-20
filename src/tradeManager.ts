@@ -20,6 +20,7 @@ interface TradeRecord {
   size: number;
   signal: SignalResult;
   orderId?: string;
+  buyPrice?: number;
   status: 'PLACED' | 'FILLED' | 'FAILED';
   pnl?: number;
 }
@@ -189,6 +190,7 @@ export async function tradingTick(): Promise<void> {
     size,
     signal,
     orderId: result.orderId,
+    buyPrice: result.buyPrice,
     status: result.success ? 'PLACED' : 'FAILED',
   };
 
@@ -225,6 +227,7 @@ export async function tradingTick(): Promise<void> {
     signalVolatility: signal.components.volatility,
     signalOrderFlow: signal.components.orderFlow,
     signalOracleLag: signal.components.oracleLag,
+    buyPrice: result.buyPrice,
     balanceBefore: paperBalance,
   });
 

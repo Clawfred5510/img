@@ -34,6 +34,9 @@ model Trade {
   signalOrderFlow  Float?
   signalOracleLag  Float?
 
+  // Execution
+  buyPrice      Float?     // Price per share when bought
+
   // Resolution
   won           Boolean?
   pnl           Float?

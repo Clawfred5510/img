@@ -32,6 +32,7 @@ export async function recordTrade(data: {
   signalVolatility?: number;
   signalOrderFlow?: number;
   signalOracleLag?: number;
+  buyPrice?: number;
   balanceBefore: number;
 }) {
   try {
