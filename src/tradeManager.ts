@@ -100,6 +100,12 @@ let lifetimePnl = savedState?.lifetimePnl || 0;
 
 if (savedState) {
   logger.info(TAG, `Loaded saved state: Balance=$${paperBalance.toFixed(2)}, Trades=${lifetimeTrades}, PnL=$${lifetimePnl.toFixed(2)}`);
+  // Check if any trade is still unresolved (PLACED but no pnl)
+  const unresolvedTrade = trades.find(t => t.status === 'PLACED' && t.pnl === undefined);
+  if (unresolvedTrade) {
+    pendingTrade = true;
+    logger.warn(TAG, `Unresolved trade found — locking until resolved: ${unresolvedTrade.marketQuestion}`);
+  }
 } else {
   logger.info(TAG, `Starting fresh: Balance=$${STARTING_BALANCE}`);
 }
@@ -124,8 +130,18 @@ export function getStats() {
   };
 }
 
+// Track whether we have an unresolved trade
+let pendingTrade = false;
+
+export function hasPendingTrade(): boolean { return pendingTrade; }
+
 export async function tradingTick(): Promise<void> {
   if (lifetimeTrades >= config.maxLifetimeTrades) {
+    return;
+  }
+
+  // HARD BLOCK: Only one trade at a time — must resolve + redeem before next
+  if (pendingTrade) {
     return;
   }
 
@@ -183,8 +199,13 @@ export async function tradingTick(): Promise<void> {
 
   if (!result.success) {
     logger.error(TAG, `Trade failed: ${result.error}`);
+    // Don't lock on failed trades
     return;
   }
+
+  // Lock: no new trades until this one resolves + redeems
+  pendingTrade = true;
+  logger.info(TAG, '🔒 Trade locked — waiting for resolution before next trade');
 
   // Record trade to database (replaces Telegram notification)
   const dbRecord = await recordTrade({
@@ -285,24 +306,6 @@ async function settleTrade(trade: TradeRecord, won: boolean) {
     });
   }
 
-  // Auto-redeem winning tokens for USDC
-  if (won && !config.paperTrade && trade.conditionId) {
-    const tokenId = trade.direction === 'UP'
-      ? getCurrentMarket()?.tokenIds[0] || ''
-      : getCurrentMarket()?.tokenIds[1] || '';
-    if (tokenId) {
-      logger.info(TAG, `Auto-redeeming winnings for ${trade.marketQuestion}...`);
-      // Delay slightly to ensure on-chain settlement
-      setTimeout(async () => {
-        try {
-          await redeemWinnings(tokenId, trade.conditionId);
-        } catch (err: any) {
-          logger.error(TAG, `Auto-redeem failed: ${err.message}`);
-        }
-      }, 30_000); // 30s delay for settlement
-    }
-  }
-
   // Take balance snapshot after resolution
   saveBalanceSnapshot({
     balance: paperBalance,
@@ -310,6 +313,33 @@ async function settleTrade(trade: TradeRecord, won: boolean) {
     totalPnl: lifetimePnl,
     mode: config.paperTrade ? 'paper' : 'live',
   });
+
+  // Auto-redeem winning tokens for USDC, then unlock
+  if (won && !config.paperTrade && trade.conditionId) {
+    const tokenId = trade.direction === 'UP'
+      ? getCurrentMarket()?.tokenIds[0] || ''
+      : getCurrentMarket()?.tokenIds[1] || '';
+    if (tokenId) {
+      logger.info(TAG, `Auto-redeeming winnings for ${trade.marketQuestion}...`);
+      setTimeout(async () => {
+        try {
+          await redeemWinnings(tokenId, trade.conditionId);
+          logger.info(TAG, '🔓 Trade unlocked — ready for next trade');
+        } catch (err: any) {
+          logger.error(TAG, `Auto-redeem failed: ${err.message}`);
+          logger.info(TAG, '🔓 Trade unlocked despite redeem failure');
+        } finally {
+          pendingTrade = false;
+        }
+      }, 30_000);
+    } else {
+      pendingTrade = false;
+    }
+  } else {
+    // Lost trade or paper trade — unlock immediately
+    if (!won) logger.info(TAG, '🔓 Trade unlocked (loss resolved)');
+    pendingTrade = false;
+  }
 
   if (lifetimeTrades >= config.maxLifetimeTrades) {
     logger.warn(TAG, `TRADE LIMIT REACHED: ${lifetimeTrades}/${config.maxLifetimeTrades}`);
