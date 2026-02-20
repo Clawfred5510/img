@@ -98,6 +98,9 @@ let lifetimeWins = savedState?.lifetimeWins || 0;
 let lifetimeLosses = savedState?.lifetimeLosses || 0;
 let lifetimePnl = savedState?.lifetimePnl || 0;
 
+// Track whether we have an unresolved trade — declared here before use in state check
+let pendingTrade = false;
+
 if (savedState) {
   logger.info(TAG, `Loaded saved state: Balance=$${paperBalance.toFixed(2)}, Trades=${lifetimeTrades}, PnL=$${lifetimePnl.toFixed(2)}`);
   // Check if any trade is still unresolved (PLACED but no pnl)
@@ -129,9 +132,6 @@ export function getStats() {
     sessionTrades: trades.length,
   };
 }
-
-// Track whether we have an unresolved trade
-let pendingTrade = false;
 
 export function hasPendingTrade(): boolean { return pendingTrade; }
 
