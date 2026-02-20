@@ -299,7 +299,13 @@ function connectWS() {
 connectWS();
 
 // --- API Polling ---
-async function fetchJ(url) { try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch { return null; } }
+async function fetchJ(url) { 
+  try { 
+    const r = await fetch(url); 
+    if (!r.ok) { console.warn('API error:', url, r.status); return null; }
+    return await r.json(); 
+  } catch(e) { console.warn('Fetch failed:', url, e); return null; } 
+}
 function fmtPnl(v) { if (v==null) return '—'; const n=parseFloat(v); return (n>=0?'+':'')+('$'+Math.abs(n).toFixed(2)); }
 function fmtTime(ts) { return new Date(ts).toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'}); }
 
@@ -317,26 +323,35 @@ async function pollDashboard() {
   badge.textContent = d.mode?.toUpperCase() || 'LIVE';
   badge.className = 'mode-badge ' + (d.mode || 'live');
 
-  // Stats
-  const s = d.stats || {};
-  document.getElementById('s-balance').textContent = '$' + (s.balance||0).toFixed(2);
-  document.getElementById('s-starting').textContent = 'Starting: $' + (s.startingBalance||0).toFixed(2);
+  // Stats — normalize field names (DB uses lifetimeTrades, in-memory uses totalTrades)
+  const raw = d.stats || {};
+  const s = {
+    balance: raw.balance || 0,
+    startingBalance: raw.startingBalance || 0,
+    totalTrades: raw.lifetimeTrades ?? raw.totalTrades ?? 0,
+    wins: raw.lifetimeWins ?? raw.wins ?? 0,
+    losses: raw.lifetimeLosses ?? raw.losses ?? 0,
+    pnl: raw.lifetimePnl ?? raw.totalPnl ?? 0,
+    dailyPnl: raw.dailyPnl ?? 0,
+    winRate: raw.winRate ?? 0,
+  };
+  
+  document.getElementById('s-balance').textContent = '$' + s.balance.toFixed(2);
+  document.getElementById('s-starting').textContent = 'Starting: $' + s.startingBalance.toFixed(2);
 
-  const pnl = s.lifetimePnl ?? s.totalPnl ?? 0;
   const pnlEl = document.getElementById('s-pnl');
-  pnlEl.textContent = fmtPnl(pnl);
-  pnlEl.className = 'value ' + (pnl>=0?'green':'red');
+  pnlEl.textContent = fmtPnl(s.pnl);
+  pnlEl.className = 'value ' + (s.pnl>=0?'green':'red');
 
   const ret = s.startingBalance ? ((s.balance - s.startingBalance)/s.startingBalance*100).toFixed(1) : '0.0';
   document.getElementById('s-return').textContent = 'Return: ' + (parseFloat(ret)>=0?'+':'') + ret + '%';
 
-  const wr = s.lifetimeTrades > 0 ? ((s.lifetimeWins||0)/(s.lifetimeTrades)*100).toFixed(1) : '0.0';
+  const wr = s.totalTrades > 0 ? (s.wins/s.totalTrades*100).toFixed(1) : '0.0';
   document.getElementById('s-winrate').textContent = wr + '%';
-  document.getElementById('s-record').textContent = `W${s.lifetimeWins||0} / L${s.lifetimeLosses||0}`;
+  document.getElementById('s-record').textContent = `W${s.wins} / L${s.losses}`;
 
-  document.getElementById('s-trades').textContent = s.lifetimeTrades || 0;
-  const dp = s.dailyPnl || 0;
-  document.getElementById('s-daily-pnl').textContent = 'Daily: ' + fmtPnl(dp);
+  document.getElementById('s-trades').textContent = s.totalTrades;
+  document.getElementById('s-daily-pnl').textContent = 'Daily: ' + fmtPnl(s.dailyPnl);
 
   // Market
   if (d.currentMarket) {
