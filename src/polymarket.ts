@@ -222,16 +222,17 @@ export async function placeTrade(params: TradeParams): Promise<{ success: boolea
       nonce: 0,
     }, { tickSize: currentMarket.tickSize as any });
 
-    if (order && order.orderID) {
+    // Detect failed orders — Polymarket returns { error: "..." } on failure
+    if (order && (order as any).error) {
+      const errMsg = (order as any).error;
+      logger.error(TAG, `Order REJECTED: ${errMsg}`, order);
+      return { success: false, error: errMsg };
+    } else if (order && order.orderID) {
       logger.info(TAG, `Order placed: ${order.orderID}`, order);
       return { success: true, orderId: order.orderID };
-    } else if (order && (order as any).success === false) {
-      const errMsg = (order as any).error || 'Order rejected';
-      logger.warn(TAG, 'Order rejected', order);
-      return { success: false, error: errMsg };
     } else {
-      logger.info(TAG, 'Order response', order);
-      return { success: true, orderId: (order as any)?.orderID || 'unknown' };
+      logger.warn(TAG, 'Unexpected order response', order);
+      return { success: false, error: 'Unexpected response — no orderID' };
     }
   } catch (err: any) {
     logger.error(TAG, 'Trade failed', err.response?.data || err.message);
