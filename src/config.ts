@@ -40,6 +40,10 @@ export const config = {
   orderFlowImbalanceThreshold: 0.6,
   oracleLagThreshold: 0.001,
 
+  // Price limits — don't buy when profit margin is too thin
+  // At 0.75, a $5 bet profits $1.67 on win. At 0.90, only $0.56.
+  maxBuyPrice: 0.75,  // Won't buy outcome tokens above this price
+
   // Kelly criterion — backtest-derived
   kellyFraction: 0.164,
   estimatedEdge: 0.30,

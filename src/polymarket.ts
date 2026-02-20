@@ -200,6 +200,12 @@ export async function placeTrade(params: TradeParams): Promise<{ success: boolea
       }
     }
 
+    // Reject if price is too high — profit margin would be eaten by fees/gas
+    if (price > config.maxBuyPrice) {
+      logger.warn(TAG, `Price too high: ${price} > max ${config.maxBuyPrice} — skipping (profit would be $${((params.size / price - params.size)).toFixed(2)})`);
+      return { success: false, error: `Price ${price} exceeds max ${config.maxBuyPrice}` };
+    }
+
     const shares = Math.floor((params.size / price) * 100) / 100;
 
     if (!currentMarket) {
