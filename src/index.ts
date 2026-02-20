@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { config } from './config';
 import { logger } from './logger';
 import { initDb } from './db';
@@ -14,8 +16,44 @@ import { startApi } from './api';
 
 const TAG = 'MAIN';
 
+// Startup lock to prevent duplicate instances
+const LOCK_FILE = path.join(__dirname, '..', 'data', 'img.lock');
+
+function acquireLock(): boolean {
+  try {
+    const dir = path.dirname(LOCK_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    // Check if lock exists and if the PID is still alive
+    if (fs.existsSync(LOCK_FILE)) {
+      const oldPid = parseInt(fs.readFileSync(LOCK_FILE, 'utf-8').trim());
+      try {
+        process.kill(oldPid, 0); // Check if process exists
+        logger.error(TAG, `Another instance is running (PID ${oldPid}). Exiting.`);
+        return false;
+      } catch {
+        // Process doesn't exist, stale lock
+        logger.warn(TAG, `Removing stale lock (PID ${oldPid})`);
+      }
+    }
+    fs.writeFileSync(LOCK_FILE, String(process.pid));
+    return true;
+  } catch (err: any) {
+    logger.error(TAG, `Lock error: ${err.message}`);
+    return false;
+  }
+}
+
+function releaseLock() {
+  try { fs.unlinkSync(LOCK_FILE); } catch {}
+}
+
 async function main() {
-  logger.info(TAG, `💰 IMG Bot starting... (paper=${config.paperTrade})`);
+  if (!acquireLock()) {
+    process.exit(1);
+  }
+
+  logger.info(TAG, `💰 IMG Bot starting... (paper=${config.paperTrade}) [PID ${process.pid}]`);
   logger.info(TAG, `Signal threshold: ${config.signalThreshold}, Max bet: ${config.maxBetSize} USDC`);
 
   // Initialize database
@@ -101,19 +139,17 @@ async function main() {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info(TAG, 'Shutting down...');
+function shutdown(signal: string) {
+  logger.info(TAG, `${signal} received, shutting down...`);
+  releaseLock();
   cleanup();
   disconnectBinance();
   process.exit(0);
-});
+}
 
-process.on('SIGINT', () => {
-  logger.info(TAG, 'Interrupted, shutting down...');
-  cleanup();
-  disconnectBinance();
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('exit', releaseLock);
 
 main().catch(err => {
   logger.error(TAG, 'Fatal error', err);

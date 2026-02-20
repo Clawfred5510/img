@@ -5,6 +5,7 @@ import { logger } from './logger';
 import { placeTrade, getCurrentMarket } from './polymarket';
 import { computeSignal, kellyBetSize, SignalResult } from './signals';
 import { recordTrade, resolveTrade, saveBotState, saveBalanceSnapshot, logSignal } from './db';
+import { redeemWinnings } from './redeem';
 
 const TAG = 'TRADER';
 
@@ -282,6 +283,24 @@ async function settleTrade(trade: TradeRecord, won: boolean) {
       pnl,
       balanceAfter: paperBalance,
     });
+  }
+
+  // Auto-redeem winning tokens for USDC
+  if (won && !config.paperTrade && trade.conditionId) {
+    const tokenId = trade.direction === 'UP'
+      ? getCurrentMarket()?.tokenIds[0] || ''
+      : getCurrentMarket()?.tokenIds[1] || '';
+    if (tokenId) {
+      logger.info(TAG, `Auto-redeeming winnings for ${trade.marketQuestion}...`);
+      // Delay slightly to ensure on-chain settlement
+      setTimeout(async () => {
+        try {
+          await redeemWinnings(tokenId, trade.conditionId);
+        } catch (err: any) {
+          logger.error(TAG, `Auto-redeem failed: ${err.message}`);
+        }
+      }, 30_000); // 30s delay for settlement
+    }
   }
 
   // Take balance snapshot after resolution
