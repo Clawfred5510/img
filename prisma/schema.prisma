@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Trade {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Market info
+  market        String
+  marketQuestion String
+  conditionId   String
+  slug          String
+
+  // Trade details
+  direction     String   // UP or DOWN
+  size          Float    // USDC bet size
+  orderId       String?
+  status        String   // PLACED, FILLED, FAILED
+  mode          String   // paper or live
+
+  // Signal data at time of trade
+  signalCombined   Float
+  signalConfidence Float
+  signalMomentum   Float?
+  signalMeanRev    Float?
+  signalVolatility Float?
+  signalOrderFlow  Float?
+  signalOracleLag  Float?
+
+  // Resolution
+  won           Boolean?
+  pnl           Float?
+  resolvedAt    DateTime?
+
+  // Balance snapshot
+  balanceBefore Float
+  balanceAfter  Float?
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([mode])
+}
+
+model BalanceSnapshot {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  balance   Float
+  dailyPnl  Float
+  totalPnl  Float
+  mode      String   // paper or live
+
+  @@index([createdAt])
+}
+
+model BotState {
+  id              String   @id @default("singleton")
+  updatedAt       DateTime @updatedAt
+  balance         Float
+  dailyPnl        Float
+  lifetimeTrades  Int
+  lifetimeWins    Int
+  lifetimeLosses  Int
+  lifetimePnl     Float
+  startingBalance Float
+  mode            String   // paper or live
+}
+
+model SignalLog {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  market        String
+  conditionId   String
+  combined      Float
+  direction     String?
+  confidence    Float
+  shouldTrade   Boolean
+  momentum      Float?
+  meanReversion Float?
+  volatility    Float?
+  orderFlow     Float?
+  oracleLag     Float?
+
+  @@index([createdAt])
+  @@index([conditionId])
+}
