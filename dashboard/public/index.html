@@ -307,7 +307,7 @@ function sigColor(v) { return v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'v
 function sigWidth(v) { return Math.min(Math.abs(v)*100, 100) + '%'; }
 
 async function pollDashboard() {
-  const d = await fetchJ('/api/api/dashboard');
+  const d = await fetchJ('/api/dashboard');
   if (!d) { document.getElementById('dot-bot').className='dot off'; return; }
   document.getElementById('dot-bot').className='dot on pulse';
   document.getElementById('dot-db').className='dot on';

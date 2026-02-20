@@ -7,10 +7,9 @@ const PORT = 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Proxy API calls to the bot
+// Proxy API calls to the bot (no path rewrite — bot serves at same paths)
 app.use('/api', createProxyMiddleware({
   target: 'http://localhost:4001',
-  pathRewrite: { '^/api': '' },
   changeOrigin: true,
   timeout: 5000,
   onError: (err, req, res) => res.status(502).json({ error: 'Bot API unavailable' })
